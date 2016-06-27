@@ -145,24 +145,24 @@ class BaseWebAPI {
     this._errorTransformations = [];
   }
 
-  async get(url, options, schema = null) {
+  async get(url, options) {
     this._clearRequestContext();
-    return this._fetchRequest(_createRequest('GET', this, url, options, schema));
+    return this._fetchRequest(_createRequest('GET', this, url, options));
   }
 
-  async post(url, options, schema = null) {
+  async post(url, options) {
     this._clearRequestContext();
-    return this._fetchRequest(_createRequest('POST', this, url, options, schema));
+    return this._fetchRequest(_createRequest('POST', this, url, options));
   }
 
-  async put(url, options, schema = null) {
+  async put(url, options) {
     this._clearRequestContext();
-    return this._fetchRequest(_createRequest('PUT', this, url, options, schema));
+    return this._fetchRequest(_createRequest('PUT', this, url, options));
   }
 
-  async delete(url, options, schema = null) {
+  async delete(url, options) {
     this._clearRequestContext();
-    return this._fetchRequest(_createRequest('DELETE', this, url, options, schema));
+    return this._fetchRequest(_createRequest('DELETE', this, url, options));
   }
 
 }
