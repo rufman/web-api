@@ -18,7 +18,7 @@ class BaseWebAPI {
 
     this.globalHeaders = headers;
     this.host = host.replace('/', '');
-    this.baseEndpointURL = baseEndpointURL.replace(/\/$/, "");
+    this.baseEndpointURL = baseEndpointURL.replace(/^\/|\/$/g, '');
     this.protocol = protocol.replace('://', '');
 
     this.baseURL = `${this.protocol}://${this.host}/${this.baseEndpointURL}`;
