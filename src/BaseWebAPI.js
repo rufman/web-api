@@ -155,19 +155,31 @@ class BaseWebAPI {
     return this._fetchRequest(_createRequest('POST', this, url, options, schema));
   }
 
+  async put(url, options, schema = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('PUT', this, url, options, schema));
+  }
+
+  async delete(url, options, schema = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('DELETE', this, url, options, schema));
+  }
+
 }
 
 function _createRequest(method, source, url, options, reqOptions = {}) {
   const {
     queryParams = {},
     queryParamMappings = {},
-    params = {}
+    params = {},
+    body = {}
   } = options;
 
   let fullUrl = source.baseURL + url;
 
   params.method = method.toUpperCase();
   params.headers = {...params.headers, ...source.globalHeaders};
+  params.body = body;
 
   return {
     params            : params,
