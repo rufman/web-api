@@ -1,6 +1,6 @@
 {
   "name": "web-api",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "A generic web API wrapping window.fetch",
   "main": "lib/index.js",
   "scripts": {
