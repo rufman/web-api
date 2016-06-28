@@ -171,15 +171,13 @@ function _createRequest(method, source, url, options, reqOptions = {}) {
   const {
     queryParams = {},
     queryParamMappings = {},
-    params = {},
-    body = {}
+    params = {}
   } = options;
 
   let fullUrl = source.baseURL + url;
 
   params.method = method.toUpperCase();
   params.headers = {...params.headers, ...source.globalHeaders};
-  params.body = body;
 
   return {
     params            : params,
