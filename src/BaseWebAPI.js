@@ -8,13 +8,15 @@ import es6Promise from 'es6-promise';
 es6Promise.polyfill();
 
 class BaseWebAPI {
-  constructor(options) {
+  constructor(options, config = {}) {
     const {
       baseEndpointURL = '',
       headers = {},
       host = '',
       protocol = 'https'
     } = options;
+
+    this._configSetUp(config);
 
     this.globalHeaders = headers;
     this.host = host.replace('/', '');
@@ -34,6 +36,52 @@ class BaseWebAPI {
     this._requestTransformations = [];
     this._responseTransformations = [];
     this._errorTransformations = [];
+  }
+
+  async get(url, options, reqOptions = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('GET', this, url, options, reqOptions));
+  }
+
+  async post(url, options, reqOptions = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('POST', this, url, options, reqOptions));
+  }
+
+  async put(url, options, reqOptions = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('PUT', this, url, options, reqOptions));
+  }
+
+  async delete(url, options, reqOptions = null) {
+    this._clearRequestContext();
+    return this._fetchRequest(_createRequest('DELETE', this, url, options, reqOptions));
+  }
+
+  _configSetUp(config) {
+    if (!config) return;
+
+    const {
+      afterRequest = this._afterRequest,
+      beforeRequest = this._beforeRequest,
+      clearRequestContext = this._clearRequestContext,
+      errorRequest = this._errorRequest,
+      fetchRequest = this._fetchRequest,
+      runHooks = this._runHooks,
+    } = config;
+
+    this.__afterRequest = this._afterRequest;
+    this.__beforeRequest = this._beforeRequest;
+    this.__clearRequestContext = this._clearRequestContext,
+    this.__errorRequest = this._errorRequest;
+    this.__fetchRequest = this._fetchRequest;
+    this.__runHooks = this._runHooks;
+    this._afterRequest = afterRequest;
+    this._beforeRequest = beforeRequest;
+    this._clearRequestContext = clearRequestContext,
+    this._errorRequest = errorRequest;
+    this._fetchRequest = fetchRequest;
+    this._runHooks = runHooks;
   }
 
   async _fetchRequest(req) {
@@ -146,26 +194,6 @@ class BaseWebAPI {
     this._requestTransformations = [];
     this._responseTransformations = [];
     this._errorTransformations = [];
-  }
-
-  async get(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('GET', this, url, options, reqOptions));
-  }
-
-  async post(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('POST', this, url, options, reqOptions));
-  }
-
-  async put(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('PUT', this, url, options, reqOptions));
-  }
-
-  async delete(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('DELETE', this, url, options, reqOptions));
   }
 
 }
