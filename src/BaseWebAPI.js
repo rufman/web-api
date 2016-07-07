@@ -13,7 +13,7 @@ class BaseWebAPI {
       baseEndpointURL = '',
       headers = {},
       host = '',
-      protocol = 'http'
+      protocol = 'https'
     } = options;
 
     this.globalHeaders = headers;
@@ -21,7 +21,10 @@ class BaseWebAPI {
     this.baseEndpointURL = baseEndpointURL.replace(/^\/|\/$/g, '');
     this.protocol = protocol.replace('://', '');
 
-    this.baseURL = `${this.protocol}://${this.host}/${this.baseEndpointURL}`;
+    this.baseURL = baseEndpointURL ?
+     `${this.protocol}://${this.host}/${this.baseEndpointURL}` :
+     `${this.protocol}://${this.host}`
+
     this.hooks = {
       after: [],
       before: [],
@@ -40,7 +43,7 @@ class BaseWebAPI {
     req = this._beforeRequest(req);
 
     let fullUrl = `${req.url}`;
-    if (req.queryParams) {
+    if (req.queryParams && Object.keys(req.queryParams).length) {
       fullUrl += `?${objectToQueryString(req.queryParams)}`;
     }
 
@@ -167,7 +170,7 @@ class BaseWebAPI {
 
 }
 
-function _createRequest(method, source, url, options, reqOptions = {}) {
+function _createRequest(method, source, url, options = {}, reqOptions = {}) {
   const {
     queryParams = {},
     queryParamMappings = {},
