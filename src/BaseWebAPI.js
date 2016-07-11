@@ -1,18 +1,16 @@
 import { objectToQueryString } from './index';
 import { sortAfter, sortBefore } from './hooks';
-import fetch from 'isomorphic-fetch';
 import parseURL from 'url-parse';
 
-import es6Promise from 'es6-promise';
-
-es6Promise.polyfill();
+require('isomorphic-fetch');
+require('es6-promise').polyfill();
 
 class BaseWebAPI {
   constructor(options, config = {}) {
     const {
       baseEndpointURL = '',
       headers = {},
-      host = '',
+      host = 'localhost',
       protocol = 'https'
     } = options;
 
@@ -33,102 +31,128 @@ class BaseWebAPI {
       error: []
     };
 
+    this._executionList = [
+      this._preProcessRequest,
+      this._executeRequest,
+      this._errorProcessResponse,
+      this._unpackResponse,
+      this._postProcessResponse
+    ];
+
+
     this._requestTransformations = [];
     this._responseTransformations = [];
     this._errorTransformations = [];
   }
 
   async get(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('GET', this, url, options, reqOptions));
+    this.clearRequestContext();
+    return this.fetchRequest(createRequest('GET', this, url, options, reqOptions));
   }
 
   async post(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('POST', this, url, options, reqOptions));
+    this.clearRequestContext();
+    return this.fetchRequest(createRequest('POST', this, url, options, reqOptions));
   }
 
   async put(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('PUT', this, url, options, reqOptions));
+    this.clearRequestContext();
+    return this.fetchRequest(createRequest('PUT', this, url, options, reqOptions));
   }
 
   async delete(url, options, reqOptions = null) {
-    this._clearRequestContext();
-    return this._fetchRequest(_createRequest('DELETE', this, url, options, reqOptions));
+    this.clearRequestContext();
+    return this.fetchRequest(createRequest('DELETE', this, url, options, reqOptions));
   }
 
   _configSetUp(config) {
     if (!config) return;
 
     const {
-      afterRequest = this._afterRequest,
-      beforeRequest = this._beforeRequest,
-      clearRequestContext = this._clearRequestContext,
-      errorRequest = this._errorRequest,
-      fetchRequest = this._fetchRequest,
-      runHooks = this._runHooks,
+      afterRequest = this.afterRequest,
+      beforeRequest = this.beforeRequest,
+      clearRequestContext = this.clearRequestContext,
+      errorRequest = this.errorRequest,
+      fetchRequest = this.fetchRequest,
+      runHooks = this.runHooks
     } = config;
 
-    this.__afterRequest = this._afterRequest;
-    this.__beforeRequest = this._beforeRequest;
-    this.__clearRequestContext = this._clearRequestContext,
-    this.__errorRequest = this._errorRequest;
-    this.__fetchRequest = this._fetchRequest;
-    this.__runHooks = this._runHooks;
-    this._afterRequest = afterRequest;
-    this._beforeRequest = beforeRequest;
-    this._clearRequestContext = clearRequestContext,
-    this._errorRequest = errorRequest;
-    this._fetchRequest = fetchRequest;
-    this._runHooks = runHooks;
+    this._afterRequest = this.afterRequest;
+    this._beforeRequest = this.beforeRequest;
+    this._clearRequestContext = this.clearRequestContext,
+    this._errorRequest = this.errorRequest;
+    this._fetchRequest = this.fetchRequest;
+    this._runHooks = this.runHooks;
+    this.afterRequest = afterRequest;
+    this.beforeRequest = beforeRequest;
+    this.clearRequestContext = clearRequestContext,
+    this.errorRequest = errorRequest;
+    this.fetchRequest = fetchRequest;
+    this.runHooks = runHooks;
   }
 
-  async _fetchRequest(req) {
+  async fetchRequest(req) {
+    let returnValue = req;
+    for (const func of this._executionList) {
+      returnValue = await func.call(this, returnValue, req);
+    }
+
+    return returnValue;
+  }
+
+  _preProcessRequest(req) {
     const originalRequest =  {...req};
 
     // Execute any before hooks
-    req = this._beforeRequest(req);
+    req = this.beforeRequest(req);
 
-    let fullUrl = `${req.url}`;
+    req.fetchUrl = `${req.url}`;
     if (req.queryParams && Object.keys(req.queryParams).length) {
-      fullUrl += `?${objectToQueryString(req.queryParams)}`;
+      req.fetchUrl += `?${objectToQueryString(req.queryParams)}`;
     }
 
-    let jsonResponse;
-    if (!req.__skipRequest) {
-      let response;
-      response = await fetch(fullUrl, req.params);
+    return req;
+  }
 
-      jsonResponse = await response.json();
+  _executeRequest(req) {
+    return fetch(req.fetchUrl, req.params);
+  }
 
-      if (!response.ok) {
-        // Run through error hooks and throw the Error with the message
-        // being the jsonified response given by the error hook(s)
-        jsonResponse = this._errorRequest(jsonResponse, response, originalRequest);
-        if (!jsonResponse || !jsonResponse.__isResolved) {
-          throw Error(JSON.stringify(jsonResponse));
-        }
+  _unpackResponse(response) {
+     return response.json();
+  }
+
+  _errorProcessResponse(response, originalRequest) {
+    if (!response.ok) {
+      const unpackedResponse = this._unpackResponse(response);
+      // Run through error hooks and throw the Error with the message
+      // being the jsonified response given by the error hook(s)
+      const errorResponse =
+        this.errorRequest(unpackedResponse, response, originalRequest);
+      if (errorResponse) {
+        throw Error(JSON.stringify(response));
       }
-    } else {
-      jsonResponse = req.response;
     }
 
+    return response;
+  }
+
+  _postProcessResponse(unpackedResponse, originalRequest) {
     // Execute after request hooks
-    const processedJson = this._afterRequest(jsonResponse, originalRequest);
+    const processedJson = this.afterRequest(unpackedResponse, originalRequest);
 
     processedJson._metadata = {
       baseEndpointURL       : this.baseEndpointURL,
       baseURL               : this.baseURL,
       requestTranformations : this._requestTransformations,
       responseTranformations: this._responseTransformations,
-      parsedRequestURL      : parseURL(fullUrl)
+      parsedRequestURL      : parseURL(originalRequest.fetchUrl)
     };
 
     return processedJson;
   }
 
-  _runHooks(params) {
+  runHooks(params) {
     const {
       hooks,
       secondaryObjs = [],
@@ -155,8 +179,8 @@ class BaseWebAPI {
     return newObj;
   }
 
-  _beforeRequest(req) {
-    return this._runHooks({
+  beforeRequest(req) {
+    return this.runHooks({
       hooks                : this.hooks.before,
       sort                 : sortBefore,
       transformationHistory: this._requestTransformations,
@@ -166,8 +190,8 @@ class BaseWebAPI {
     });
   }
 
-  _afterRequest(res, req) {
-    return this._runHooks({
+  afterRequest(res, req) {
+    return this.runHooks({
       hooks                : this.hooks.after,
       secondaryObjs        : [req],
       sort                 : sortAfter,
@@ -178,8 +202,8 @@ class BaseWebAPI {
     });
   }
 
-  _errorRequest(jsonRes, res, req) {
-    return this._runHooks({
+  errorRequest(jsonRes, res, req) {
+    return this.runHooks({
       hooks                : this.hooks.error,
       secondaryObjs        : [res, req],
       sort                 : sortAfter,
@@ -190,7 +214,7 @@ class BaseWebAPI {
     });
   }
 
-  _clearRequestContext() {
+  clearRequestContext() {
     this._requestTransformations = [];
     this._responseTransformations = [];
     this._errorTransformations = [];
@@ -198,7 +222,7 @@ class BaseWebAPI {
 
 }
 
-function _createRequest(method, source, url, options = {}, reqOptions = {}) {
+function createRequest(method, source, url, options = {}, reqOptions = {}) {
   const {
     queryParams = {},
     queryParamMappings = {},
@@ -215,7 +239,8 @@ function _createRequest(method, source, url, options = {}, reqOptions = {}) {
     queryParams       : queryParams,
     queryParamMappings: queryParamMappings,
     reqOptions        : reqOptions,
-    url               : fullUrl
+    url               : fullUrl,
+    fetchUrl          : ''
   }
 }
 
