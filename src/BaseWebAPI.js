@@ -1,6 +1,8 @@
+import parseURL from 'url-parse';
+
 import { objectToQueryString } from './index';
 import { sortAfter, sortBefore } from './hooks';
-import parseURL from 'url-parse';
+import createRequest from './createRequest';
 
 require('isomorphic-fetch');
 require('es6-promise').polyfill();
@@ -94,7 +96,7 @@ class BaseWebAPI {
   async fetchRequest(req) {
     let returnValue = req;
     for (const func of this._executionList) {
-      returnValue = await func.call(this, returnValue, req);
+      ({ returnValue, req = req } = await func.call(this, returnValue, req));
     }
 
     return returnValue;
@@ -108,18 +110,19 @@ class BaseWebAPI {
 
     req.fetchUrl = `${req.url}`;
     if (req.queryParams && Object.keys(req.queryParams).length) {
-      req.fetchUrl += `?${objectToQueryString(req.queryParams)}`;
+      req.fetchUrl += `?${objectToQueryString(
+        req.queryParams, req.queryParamMappings)}`;
     }
 
-    return req;
+    return {returnValue: req};
   }
 
-  _executeRequest(req) {
-    return fetch(req.fetchUrl, req.params);
+  async _executeRequest(req) {
+    return {returnValue: await fetch(req.fetchUrl, req.params), req: req};
   }
 
-  _unpackResponse(response) {
-     return response.json();
+  async _unpackResponse(response) {
+     return {returnValue: await response.json()};
   }
 
   _errorProcessResponse(response, originalRequest) {
@@ -134,7 +137,7 @@ class BaseWebAPI {
       }
     }
 
-    return response;
+    return {returnValue: response};
   }
 
   _postProcessResponse(unpackedResponse, originalRequest) {
@@ -149,7 +152,7 @@ class BaseWebAPI {
       parsedRequestURL      : parseURL(originalRequest.fetchUrl)
     };
 
-    return processedJson;
+    return {returnValue: processedJson};
   }
 
   runHooks(params) {
@@ -220,28 +223,6 @@ class BaseWebAPI {
     this._errorTransformations = [];
   }
 
-}
-
-function createRequest(method, source, url, options = {}, reqOptions = {}) {
-  const {
-    queryParams = {},
-    queryParamMappings = {},
-    params = {}
-  } = options;
-
-  let fullUrl = source.baseURL + url;
-
-  params.method = method.toUpperCase();
-  params.headers = {...params.headers, ...source.globalHeaders};
-
-  return {
-    params            : params,
-    queryParams       : queryParams,
-    queryParamMappings: queryParamMappings,
-    reqOptions        : reqOptions,
-    url               : fullUrl,
-    fetchUrl          : ''
-  }
 }
 
 export default BaseWebAPI;
